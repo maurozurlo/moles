@@ -10,23 +10,45 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
-const moles = []
+const moles = [];
+const score = {
+    instance: null,
+    points: 0
+}
 
 function preload() {
     // Load the spritesheets for each mole animation
+    this.load.image('background', 'bg.png')
     this.load.spritesheet('mole_out', 'mole_out.png', { frameWidth: 120, frameHeight: 92 });
     this.load.spritesheet('mole_idle', 'mole_idle.png', { frameWidth: 120, frameHeight: 92 });
     this.load.spritesheet('mole_hit', 'mole_hit.png', { frameWidth: 120, frameHeight: 92 });
     this.load.spritesheet('mole_miss', 'mole_miss.png', { frameWidth: 120, frameHeight: 92 });
-    this.load.image('hole', 'hole.png'); // Hole image
+    this.load.spritesheet('hole', 'hole.png', { frameWidth: 160, frameHeight: 140 }); // Hole image
 }
 
+function updateScore() {
+    score.instance.text = String(score.points)
+}
 function create() {
+    this.add.image(0, 0, 'background').setOrigin(0, 0)
+    this.anims.create({
+        key: 'hole',
+        frames: this.anims.generateFrameNumbers('hole', { start: 0, end: 2 }),
+        frameRate: 9,
+        repeat: -1
+    });
+
+    score.instance = this.add.text(640 / 2, 20, String(score.points), { fontFamily: 'Georgia' }).setOrigin(0.5, 0.5);
+
+
     // Create a 3x3 grid of holes
     for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
-            this.add.image(160 + i * 160, 92 + j * 92, 'hole').setOrigin(0.5, 0);
-            const mole = this.add.sprite(160 + i * 160, 92 + j * 92, 'mole_out').setOrigin(0.5, -0.3).setAlpha(0);
+
+            const hole = this.add.sprite(160 + i * 160, 20 + j * 140, 'hole').setOrigin(0.5, 0).setDepth(1)
+            hole.anims.play('hole', true);
+            const mole = this.add.sprite(160 + i * 160, 76 + j * 140, 'mole_out').setOrigin(0.5, 0.5).setAlpha(0);
+            mole.blendMode = Phaser.BlendModes.MULTIPLY
             mole.setInteractive();
             const id = String(i).concat('-', j)
             moles.push({
@@ -69,12 +91,14 @@ function create() {
 
 function moleWasHit(id) {
     const mole = moles.find(mole => mole.id === id);
-    if (mole.state !== 'idle') return;
+    if (mole.state === 'ready' || mole.state === 'miss' || mole.state === 'hit') return;
 
     mole.instance.anims.play('hit', true);
     mole.state = 'hit';
     const reactionTime = (Date.now() - mole.spawned) / 1000;
     console.log('Mole was hit after: ', reactionTime)
+    score.points += Math.round(reactionTime * 10)
+    updateScore();
     mole.spawned = null;
 
     setTimeout(() => {
@@ -101,6 +125,9 @@ function missMole(mole) {
     mole.instance.play('miss', true)
     mole.state = 'miss'
     // Time to reactivate
+
+    score.points -= 10
+    updateScore();
     setTimeout(() => {
         mole.state = 'ready'
     }, mole.instance.anims.currentAnim.duration + 1500)
@@ -119,9 +146,10 @@ function spawnMole() {
     mole.instance.setAlpha(1)
     mole.instance.play('out', true);
     mole.state = 'out';
+    mole.spawned = Date.now();
 
     setTimeout(() => {
-        mole.spawned = Date.now();
+        if (mole.state === 'hit') return;
         mole.instance.play('idle', true);
         mole.state = 'idle'
     }, mole.instance.anims.currentAnim.duration)

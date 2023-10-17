@@ -26,20 +26,15 @@ function create() {
     for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
             this.add.image(160 + i * 160, 92 + j * 92, 'hole').setOrigin(0.5, 0);
-
-            // Create moles and add them to the grid
-            const mole = this.add.sprite(160 + i * 160, 92 + j * 92, 'mole_idle').setOrigin(0.5, -0.3);
-
+            const mole = this.add.sprite(160 + i * 160, 92 + j * 92, 'mole_out').setOrigin(0.5, -0.3).setAlpha(0);
             mole.setInteractive();
-
             const id = String(i).concat('-', j)
-
             moles.push({
                 id,
                 instance: mole,
-                state: null
+                state: 'ready',
+                spawned: null
             })
-            // Define mole animations (out, idle, hit)
             this.anims.create({
                 key: 'out',
                 frames: this.anims.generateFrameNumbers('mole_out', { start: 0, end: 5 }),
@@ -64,53 +59,74 @@ function create() {
                 frameRate: 10,
                 repeat: 0
             });
-
             mole.on('pointerdown', () => {
                 moleWasHit(id);
             });
         }
     }
-
-    //mole.anims.play('out', true);
-    setInterval(() => {
-        spawnMole();
-    }, 1000);
+    spawnMole();
 }
 
 function moleWasHit(id) {
     const mole = moles.find(mole => mole.id === id);
-    if (mole.state !== 'hit') {
-        mole.instance.anims.play('hit', true);
-        mole.state = 'hit';
-    }
+    if (mole.state !== 'idle') return;
+
+    mole.instance.anims.play('hit', true);
+    mole.state = 'hit';
+    const reactionTime = (Date.now() - mole.spawned) / 1000;
+    console.log('Mole was hit after: ', reactionTime)
+    mole.spawned = null;
+
+    setTimeout(() => {
+        mole.state = 'ready'
+    }, mole.instance.anims.currentAnim.duration + 1500)
+}
+// Mole States
+/*
+ready    
+out
+idle
+miss
+hit
+*/
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function missMole(mole) {
+    if (mole.state !== 'idle') return;
+    mole.instance.play('miss', true)
+    mole.state = 'miss'
+    // Time to reactivate
+    setTimeout(() => {
+        mole.state = 'ready'
+    }, mole.instance.anims.currentAnim.duration + 1500)
 }
 
 function spawnMole() {
-    const emptyMoleIndices = moles.reduce((acc, state, index) => {
-        if (state !== 'idle') acc.push(index);
-        return acc;
-    }, []);
-
-    if (emptyMoleIndices.length === 0) {
-        // All moles have been hit; reset moleStates
-        console.error('do something')
-    } else {
-        const randomIndex = emptyMoleIndices[Math.floor(Math.random() * emptyMoleIndices.length)];
-        const mole = moles[randomIndex];
-
-        mole.instance.play('out', true);
-        mole.state = 'out'
-        setTimeout(() => {
-            mole.instance.play('idle', true);
-            mole.state = 'idle'
-
-            setTimeout(() => {
-                mole.instance.play('miss', true)
-                mole.state = null
-            }, 1500)
-        }, 500)
-
-
-        //missMole(mole, randomIndex);
+    const readyMoleIndices = moles.filter(mole => mole.state === 'ready')
+    if (readyMoleIndices.length === 0) {
+        // All moles are doing something, we wait some seconds and try again
+        setTimeout(() => spawnMole(), getRandomInt(1500, 3000));
+        return;
     }
+    console.log(readyMoleIndices)
+
+    const mole = readyMoleIndices[Math.floor(Math.random() * readyMoleIndices.length)];
+    mole.instance.setAlpha(1)
+    mole.instance.play('out', true);
+    mole.state = 'out';
+
+    setTimeout(() => {
+        mole.spawned = Date.now();
+        mole.instance.play('idle', true);
+        mole.state = 'idle'
+    }, mole.instance.anims.currentAnim.duration)
+
+    setTimeout(() => { missMole(mole) }, 1500);
+    // Spawn Moles
+    setTimeout(() => spawnMole(), getRandomInt(1500, 3000));
 }

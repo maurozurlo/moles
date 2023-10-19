@@ -19,8 +19,6 @@ class Menu extends Phaser.Scene {
         this.load.spritesheet('mole_miss', 'mole_miss.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('hole', 'hole.png', { frameWidth: 160, frameHeight: 140 });
         this.load.spritesheet('playButton', 'playButton.png', { frameWidth: 202, frameHeight: 91 });
-
-
     }
 
     create() {
@@ -56,8 +54,6 @@ class GameOver extends Phaser.Scene {
         this.add.text(640 / 2, 100 + 120, "your score was: ".concat(globalScores.lastScore), { fontFamily: 'consolas' }).setOrigin(0.5, 0.5);
         this.add.text(640 / 2, 100 + 140, "your best score was: ".concat(globalScores.bestScore), { fontFamily: 'consolas' }).setOrigin(0.5, 0.5);
 
-
-
         play.on('pointerover', () => {
             play.setFrame(1);
         })
@@ -75,25 +71,23 @@ class GameOver extends Phaser.Scene {
 }
 
 class Play extends Phaser.Scene {
-    MAX_MISSED = 1;
+    MAX_MISSED = 3;
 
     constructor() {
         super('MainGame');
-        this.moles = []
+        this.moles = [];
         this.score = {
             instance: null,
             points: 0,
             missed: 0,
-        }
-        this.gameState = 'play'
+        };
+        this.gameState = 'play';
+        this.moleSpawnTimer = null;
     }
 
     create() {
         this.gameState = 'play'
         this.add.image(0, 0, 'background').setOrigin(0, 0)
-
-        console.log({ moles: this.moles })
-
         this.anims.create({
             key: 'hole',
             frames: this.anims.generateFrameNumbers('hole', { start: 0, end: 2 }),
@@ -147,7 +141,12 @@ class Play extends Phaser.Scene {
             }
         }
 
-        this.spawnMole();
+        this.moleSpawnTimer = this.time.addEvent({
+            delay: Phaser.Math.Between(1500, 3000),
+            callback: this.spawnMole,
+            callbackScope: this,
+            loop: true
+        });
     }
 
     moleWasHit(id) {
@@ -159,9 +158,9 @@ class Play extends Phaser.Scene {
         this.score.points += Math.round(reactionTime * 10)
         this.updateScore();
         mole.spawned = null;
-        setTimeout(() => {
-            mole.state = 'ready'
-        }, mole.instance.anims.currentAnim.duration + 1500)
+        this.time.delayedCall(mole.instance.anims.currentAnim.duration + 1500, () => {
+            mole.state = 'ready';
+        });
     }
 
     moleWasMissed(mole) {
@@ -169,17 +168,15 @@ class Play extends Phaser.Scene {
         mole.instance.play('miss', true)
         mole.state = 'miss'
         this.score.missed++;
-
-        if (this.score.missed >= this.MAX_MISSED) {
-            this.gameOver();
-            return;
-        }
-
-        setTimeout(() => {
-            mole.state = 'ready'
-
-
-        }, mole.instance.anims.currentAnim.duration + 1500)
+        this.time.delayedCall(mole.instance.anims.currentAnim.duration, () => {
+            if (this.score.missed >= this.MAX_MISSED) {
+                this.gameOver();
+                return;
+            }
+        })
+        this.time.delayedCall(mole.instance.anims.currentAnim.duration + 1500, () => {
+            mole.state = 'ready';
+        });
     }
 
     gameOver() {
@@ -188,38 +185,31 @@ class Play extends Phaser.Scene {
         if (this.score.points >= globalScores.bestScore) {
             globalScores.bestScore = this.score.points;
         }
-
+        this.moles = [];
+        this.score = {
+            instance: null,
+            points: 0,
+            missed: 0,
+        };
+        this.gameState = 'play';
+        this.moleSpawnTimer = null;
         this.scene.start('GameOver')
-    }
-
-    leaveScene() {
-        this.scene.remove('MainGame');
     }
 
     spawnMole() {
         if (this.gameState !== 'play') return;
         const readyMoleIndices = this.moles.filter(mole => mole.state === 'ready')
-        if (readyMoleIndices.length === 0) {
-            // This should never happen...
-            // All moles are doing something, we wait some seconds and try again?
-            setTimeout(() => this.spawnMole(), Phaser.Math.Between(1500, 3000));
-            return;
-        }
         const mole = readyMoleIndices[Math.floor(Math.random() * readyMoleIndices.length)];
-        console.log(mole.instance)
         mole.instance.setAlpha(1)
         mole.instance.play('out', true);
         mole.state = 'out';
         mole.spawned = Date.now();
-
-        setTimeout(() => {
+        this.time.delayedCall(mole.instance.anims.currentAnim.duration, () => {
             if (mole.state === 'hit') return;
             mole.instance.play('idle', true);
-            mole.state = 'idle'
-        }, mole.instance.anims.currentAnim.duration)
-        setTimeout(() => { this.moleWasMissed(mole) }, 1500);
-        // Spawn More Moles
-        setTimeout(() => this.spawnMole(), Phaser.Math.Between(1500, 3000));
+            mole.state = 'idle';
+        });
+        this.time.delayedCall(1500, () => this.moleWasMissed(mole));
     }
 
     updateScore() {

@@ -1,25 +1,32 @@
 // Mole States
 // ready | out | idle | miss | hit
-const globalScore = 0;
+const globalScores = {
+    bestScore: 0,
+    lastScore: 0
+}
 class Menu extends Phaser.Scene {
     constructor() {
         super('Menu');
     }
     preload() {
         this.load.image('background2', 'startbg.png')
+        this.load.image('background3', 'gameover.png')
         this.load.image('background', 'bg.png')
         this.load.image('quitButton', 'quitButton.png')
         this.load.spritesheet('mole_out', 'mole_out.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('mole_idle', 'mole_idle.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('mole_hit', 'mole_hit.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('mole_miss', 'mole_miss.png', { frameWidth: 120, frameHeight: 92 });
-        this.load.spritesheet('hole', 'hole.png', { frameWidth: 160, frameHeight: 140 }); // Hole image
+        this.load.spritesheet('hole', 'hole.png', { frameWidth: 160, frameHeight: 140 });
         this.load.spritesheet('playButton', 'playButton.png', { frameWidth: 202, frameHeight: 91 });
+
+
     }
 
     create() {
         this.add.image(0, 0, 'background2').setOrigin(0, 0)
         const play = this.add.sprite(640 / 2, 260, 'playButton').setOrigin(0.5, 0.5).setInteractive().setScale(.8);
+
         play.on('pointerover', () => {
             play.setFrame(1);
         })
@@ -42,8 +49,14 @@ class GameOver extends Phaser.Scene {
         super('GameOver');
     }
     create() {
-        this.add.image(0, 0, 'background2').setOrigin(0, 0)
-        const play = this.add.sprite(640 / 2, 260, 'playButton').setOrigin(0.5, 0.5).setInteractive().setScale(.8);
+        this.add.image(0, 0, 'background3').setOrigin(0, 0)
+        const play = this.add.sprite(640 / 2, 60 + 260, 'playButton').setOrigin(0.5, 0.5).setInteractive().setScale(.8);
+
+        this.add.text(640 / 2, 100 + 80, "game over", { fontFamily: 'consolas', fontSize: 22 }).setOrigin(0.5, 0.5);
+        this.add.text(640 / 2, 100 + 120, "your score was: ".concat(globalScores.lastScore), { fontFamily: 'consolas' }).setOrigin(0.5, 0.5);
+        this.add.text(640 / 2, 100 + 140, "your best score was: ".concat(globalScores.bestScore), { fontFamily: 'consolas' }).setOrigin(0.5, 0.5);
+
+
 
         play.on('pointerover', () => {
             play.setFrame(1);
@@ -53,41 +66,72 @@ class GameOver extends Phaser.Scene {
         })
 
         play.once('pointerdown', () => {
-            this.scene.transition({
-                target: 'Menu',
-                duration: 500,
-                moveBelow: true,
-            });
+            this.cameras.main.fadeOut(1000, 0, 0, 0)
         });
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+            this.scene.start('Menu')
+        })
     }
 }
 
 class Play extends Phaser.Scene {
+    MAX_MISSED = 1;
 
     constructor() {
         super('MainGame');
         this.moles = []
         this.score = {
             instance: null,
-            points: 0
+            points: 0,
+            missed: 0,
         }
+        this.gameState = 'play'
     }
 
     create() {
+        this.gameState = 'play'
         this.add.image(0, 0, 'background').setOrigin(0, 0)
+
+        console.log({ moles: this.moles })
+
         this.anims.create({
             key: 'hole',
             frames: this.anims.generateFrameNumbers('hole', { start: 0, end: 2 }),
             frameRate: 9,
             repeat: -1
         });
-        this.score.instance = this.add.text(640 / 2, 20, 0, { fontFamily: 'Georgia' }).setOrigin(0.5, 0.5);
+        this.anims.create({
+            key: 'out',
+            frames: this.anims.generateFrameNumbers('mole_out', { start: 0, end: 5 }),
+            frameRate: 9,
+            repeat: 0
+        });
+        this.anims.create({
+            key: 'idle',
+            frames: this.anims.generateFrameNumbers('mole_idle', { start: 0, end: 8 }),
+            frameRate: 10,
+            repeat: -1
+        });
+        this.anims.create({
+            key: 'hit',
+            frames: this.anims.generateFrameNumbers('mole_hit', { start: 0, end: 9 }),
+            frameRate: 10,
+            repeat: 0
+        });
+        this.anims.create({
+            key: 'miss',
+            frames: this.anims.generateFrameNumbers('mole_miss', { start: 0, end: 11 }),
+            frameRate: 10,
+            repeat: 0
+        });
+
+        this.score.instance = this.add.text(640 / 2, 20, 0, { fontFamily: 'consolas' }).setOrigin(0.5, 0.5);
         for (let i = 0; i < 3; i++) {
             for (let j = 0; j < 3; j++) {
-                const hole = this.add.sprite(160 + i * 160, 20 + j * 140, 'hole').setOrigin(0.5, 0).setDepth(1)
+                const hole = this.add.sprite(160 + i * 160, 20 + j * 140, 'hole').setOrigin(0.5, 0).setDepth(1);
                 hole.anims.play('hole', true);
                 const mole = this.add.sprite(160 + i * 160, 76 + j * 140, 'mole_out').setOrigin(0.5, 0.5).setAlpha(0);
-                mole.blendMode = Phaser.BlendModes.MULTIPLY
+                mole.blendMode = Phaser.BlendModes.MULTIPLY;
                 mole.setInteractive();
                 const id = String(i).concat('-', j)
                 this.moles.push({
@@ -96,35 +140,13 @@ class Play extends Phaser.Scene {
                     state: 'ready',
                     spawned: null
                 })
-                this.anims.create({
-                    key: 'out',
-                    frames: this.anims.generateFrameNumbers('mole_out', { start: 0, end: 5 }),
-                    frameRate: 9,
-                    repeat: 0
-                });
-                this.anims.create({
-                    key: 'idle',
-                    frames: this.anims.generateFrameNumbers('mole_idle', { start: 0, end: 8 }),
-                    frameRate: 10,
-                    repeat: -1
-                });
-                this.anims.create({
-                    key: 'hit',
-                    frames: this.anims.generateFrameNumbers('mole_hit', { start: 0, end: 9 }),
-                    frameRate: 10,
-                    repeat: 0
-                });
-                this.anims.create({
-                    key: 'miss',
-                    frames: this.anims.generateFrameNumbers('mole_miss', { start: 0, end: 11 }),
-                    frameRate: 10,
-                    repeat: 0
-                });
+
                 mole.on('pointerdown', () => {
                     this.moleWasHit(id);
                 });
             }
         }
+
         this.spawnMole();
     }
 
@@ -146,14 +168,36 @@ class Play extends Phaser.Scene {
         if (mole.state !== 'idle') return;
         mole.instance.play('miss', true)
         mole.state = 'miss'
-        this.score.points -= 10
-        this.updateScore();
+        this.score.missed++;
+
+        if (this.score.missed >= this.MAX_MISSED) {
+            this.gameOver();
+            return;
+        }
+
         setTimeout(() => {
             mole.state = 'ready'
+
+
         }, mole.instance.anims.currentAnim.duration + 1500)
     }
 
+    gameOver() {
+        this.gameState = 'over';
+        globalScores.lastScore = this.score.points;
+        if (this.score.points >= globalScores.bestScore) {
+            globalScores.bestScore = this.score.points;
+        }
+
+        this.scene.start('GameOver')
+    }
+
+    leaveScene() {
+        this.scene.remove('MainGame');
+    }
+
     spawnMole() {
+        if (this.gameState !== 'play') return;
         const readyMoleIndices = this.moles.filter(mole => mole.state === 'ready')
         if (readyMoleIndices.length === 0) {
             // This should never happen...
@@ -162,10 +206,12 @@ class Play extends Phaser.Scene {
             return;
         }
         const mole = readyMoleIndices[Math.floor(Math.random() * readyMoleIndices.length)];
+        console.log(mole.instance)
         mole.instance.setAlpha(1)
         mole.instance.play('out', true);
         mole.state = 'out';
         mole.spawned = Date.now();
+
         setTimeout(() => {
             if (mole.state === 'hit') return;
             mole.instance.play('idle', true);
@@ -186,9 +232,6 @@ const config = {
     width: 640,
     height: 480,
     backgroundColor: '#fff',
-    scene: [Menu, Play]
+    scene: [Menu, Play, GameOver]
 };
 const game = new Phaser.Game(config);
-//game.state.add('start', start)
-
-//game.state.add('end', end)

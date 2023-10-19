@@ -12,13 +12,12 @@ class Menu extends Phaser.Scene {
         this.load.image('background2', 'startbg.png')
         this.load.image('background3', 'gameover.png')
         this.load.image('background', 'bg.png')
-        this.load.image('quitButton', 'quitButton.png')
         this.load.spritesheet('mole_out', 'mole_out.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('mole_idle', 'mole_idle.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('mole_hit', 'mole_hit.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('mole_miss', 'mole_miss.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('hole', 'hole.png', { frameWidth: 160, frameHeight: 140 });
-        this.load.spritesheet('playButton', 'playButton.png', { frameWidth: 202, frameHeight: 91 });
+        this.load.spritesheet('playButton', 'play_button.png', { frameWidth: 202, frameHeight: 91 });
     }
 
     create() {

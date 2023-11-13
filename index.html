@@ -3,15 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Whack-a-Mole</title>
+    <title>moles</title>
         <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
         <link rel="stylesheet" href="style.css">
 <style>
     body{
-        height: 100vh;
-        width: 100vw;
         display: flex;
-        justify-content: center;
+    align-items: center;
+    justify-content: center;
+    }
+
+    canvas{
+        margin: 0 auto;
+        max-width: 640px;
+    width: 100%;
     }
 
     @media (max-width: 500px) {
@@ -23,8 +28,6 @@
 </head>
 
 <body>
-    <div id="game-container"></div>
     <script src="game.js"></script>
-
 </body>
 </html>

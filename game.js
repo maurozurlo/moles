@@ -4,6 +4,16 @@ const globalScores = {
     bestScore: 0,
     lastScore: 0
 }
+
+const SFX = {
+    music: {
+        instance: null,
+        volume: .7
+    },
+    sfx: {
+        volume: 1
+    }
+}
 class Menu extends Phaser.Scene {
     constructor() {
         super('Menu');
@@ -18,11 +28,29 @@ class Menu extends Phaser.Scene {
         this.load.spritesheet('mole_miss', 'mole_miss.png', { frameWidth: 120, frameHeight: 92 });
         this.load.spritesheet('hole', 'hole.png', { frameWidth: 160, frameHeight: 140 });
         this.load.spritesheet('playButton', 'play_button.png', { frameWidth: 202, frameHeight: 91 });
+
+        // SFX
+        this.load.audio('background_music', 'bg2.ogg');
+
+        // Hit
+        this.load.audio('hit0', 'hit0.ogg');
+        this.load.audio('hit1', 'hit1.ogg');
+        this.load.audio('hit2', 'hit2.ogg');
+        this.load.audio('hit3', 'hit3.ogg');
+
+        // Miss
+        this.load.audio('miss0', 'miss0.ogg');
+        this.load.audio('miss1', 'miss1.ogg');
+        this.load.audio('miss2', 'miss2.ogg');
+
+        // Click
+        this.load.audio('click', 'click.ogg');
     }
 
     create() {
         this.add.image(0, 0, 'background2').setOrigin(0, 0)
         const play = this.add.sprite(640 / 2, 260, 'playButton').setOrigin(0.5, 0.5).setInteractive().setScale(.8);
+        const click = this.sound.add('click', { volume: SFX.sfx.volume, loop: false })
 
         play.on('pointerover', () => {
             play.setFrame(1);
@@ -32,11 +60,16 @@ class Menu extends Phaser.Scene {
         })
         play.once('pointerdown', () => {
             this.cameras.main.fadeOut(1000, 0, 0, 0)
+            click.play();
         });
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
             this.scene.start('MainGame')
         })
 
+        if (!SFX.music.instance) {
+            SFX.music.instance = this.sound.add('background_music', { volume: SFX.music.volume, loop: true });
+            SFX.music.instance.play();
+        }
     }
 }
 
@@ -48,6 +81,7 @@ class GameOver extends Phaser.Scene {
     create() {
         this.add.image(0, 0, 'background3').setOrigin(0, 0)
         const play = this.add.sprite(640 / 2, 60 + 260, 'playButton').setOrigin(0.5, 0.5).setInteractive().setScale(.8);
+        const click = this.sound.add('click', { volume: SFX.sfx.volume, loop: false })
 
         this.add.text(640 / 2, 100 + 80, "game over", { fontFamily: 'consolas', fontSize: 22 }).setOrigin(0.5, 0.5);
         this.add.text(640 / 2, 100 + 120, "your score was: ".concat(globalScores.lastScore), { fontFamily: 'consolas' }).setOrigin(0.5, 0.5);
@@ -61,8 +95,10 @@ class GameOver extends Phaser.Scene {
         })
 
         play.once('pointerdown', () => {
-            this.cameras.main.fadeOut(1000, 0, 0, 0)
+            this.cameras.main.fadeOut(1000, 0, 0, 0);
+            click.play();
         });
+
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
             this.scene.start('Menu')
         })
@@ -71,6 +107,16 @@ class GameOver extends Phaser.Scene {
 
 class Play extends Phaser.Scene {
     MAX_MISSED = 3;
+    GAME_SOUNDS = {
+        hit: {
+            sounds: [],
+            lastPlayed: null
+        },
+        miss: {
+            sounds: [],
+            lastPlayed: null
+        }
+    }
 
     constructor() {
         super('MainGame');
@@ -89,7 +135,7 @@ class Play extends Phaser.Scene {
         this.add.image(0, 0, 'background').setOrigin(0, 0)
         this.anims.create({
             key: 'hole',
-            frames: this.anims.generateFrameNumbers('hole', { start: 0, end: 2 }),
+            frames: this.anims.generateFrameNumbers('hole', { start: 0, end: 3 }),
             frameRate: 9,
             repeat: -1
         });
@@ -146,12 +192,37 @@ class Play extends Phaser.Scene {
             callbackScope: this,
             loop: true
         });
+
+        // Add sounds
+        const soundConfig = { volume: SFX.sfx.volume, loop: false };
+        // Hit
+        this.GAME_SOUNDS.hit.sounds.push(this.sound.add('hit0', soundConfig))
+        this.GAME_SOUNDS.hit.sounds.push(this.sound.add('hit1', soundConfig))
+        this.GAME_SOUNDS.hit.sounds.push(this.sound.add('hit2', soundConfig))
+        this.GAME_SOUNDS.hit.sounds.push(this.sound.add('hit3', soundConfig))
+        // Miss
+        this.GAME_SOUNDS.miss.sounds.push(this.sound.add('miss0', soundConfig))
+        this.GAME_SOUNDS.miss.sounds.push(this.sound.add('miss1', soundConfig))
+        this.GAME_SOUNDS.miss.sounds.push(this.sound.add('miss2', soundConfig))
+    }
+
+    playSound(soundType) {
+        const soundCategory = this.GAME_SOUNDS[soundType];
+        if (soundCategory.sounds.length > 0) {
+            const availableSounds = soundCategory.sounds.filter(sound => sound !== soundCategory.lastPlayed);
+            const randomSound = Phaser.Math.RND.pick(availableSounds);
+            randomSound.play();
+            soundCategory.lastPlayed = randomSound;
+        } else {
+            console.error(`No sounds found for ${soundType} category.`);
+        }
     }
 
     moleWasHit(id) {
         const mole = this.moles.find(mole => mole.id === id);
         if (mole.state === 'ready' || mole.state === 'miss' || mole.state === 'hit') return;
         mole.instance.anims.play('hit', true);
+        this.playSound('hit');
         mole.state = 'hit';
         const reactionTime = (Date.now() - mole.spawned) / 1000;
         this.score.points += Math.round(reactionTime * 10)
@@ -165,6 +236,7 @@ class Play extends Phaser.Scene {
     moleWasMissed(mole) {
         if (mole.state !== 'idle') return;
         mole.instance.play('miss', true)
+        this.playSound('miss');
         mole.state = 'miss'
         this.score.missed++;
         this.time.delayedCall(mole.instance.anims.currentAnim.duration, () => {
